@@ -11,8 +11,8 @@
     "composer:deploy": "prisma deploy module.ts",
     "composer:dev": "prisma dev module.ts",
     "contract:emit": "prisma contract emit",
-    "db:init": "prisma db init",
-    "db:update": "prisma db update",
+    "db:init": "bun --env-file=.env prisma db init",
+    "db:update": "bun --env-file=.env prisma db update",
     "db:verify": "prisma db verify",
     "deploy": "bun run build && bun run composer:deploy",
     "dev": "bun --watch src/index.ts",
@@ -27,12 +27,14 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.3",
+    "@hono/zod-validator": "^0.9.1",
     "@prisma/composer": "0.28.0",
     "@prisma/composer-prisma-cloud": "0.28.0",
     "@prisma/orm-postgres": "8.0.0-rc.16",
     "alchemy": "2.0.0-beta.78",
     "hono": "^4.13.13",
-    "temporal-polyfill": "^1.0.5"
+    "temporal-polyfill": "^1.0.5",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@prisma/dev": "0.25.2",

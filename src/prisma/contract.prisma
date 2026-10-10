@@ -3,19 +3,186 @@
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
-  username  String?
   name      String?
-  posts     Post[]
   createdAt TimestamptzString @default(now())
   updatedAt temporal.updatedAtString()
+
+  addresses Address[]
+  cart      Cart?
+  orders    Order[]
+  reviews   Review[]
+
+  @@index([createdAt])
 }
 
-model Post {
-  id        Int      @id @default(autoincrement())
-  title     String
-  content   String?
-  author    User     @relation(fields: [authorId], references: [id])
-  authorId  Int
+model Address {
+  id         Int      @id @default(autoincrement())
+  fullName   String
+  phone      String
+  address    String
+  city       String
+  country    String
+  postalCode String?
+  isDefault  Boolean  @default(false)
   createdAt TimestamptzString @default(now())
   updatedAt temporal.updatedAtString()
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  slug      String   @unique
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  products Product[]
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  description String?
+  price       Decimal
+  stock       Int      @default(0)
+  sku         String   @unique
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+  reviews    Review[]
+
+  @@index([categoryId])
+  @@index([isActive, createdAt])
+}
+
+model Cart {
+  id        Int      @id @default(autoincrement())
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items CartItem[]
+}
+
+model CartItem {
+  id       Int @id @default(autoincrement())
+  quantity Int @default(1)
+
+  cartId Int
+  cart   Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([cartId, productId])
+  @@index([productId])
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  orderNumber String      @unique @default(cuid(2))
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  // Shipping address snapshot:
+  // Preserve the address used when the order was placed.
+  shippingFullName   String
+  shippingPhone      String
+  shippingAddress    String
+  shippingCity       String
+  shippingCountry    String
+  shippingPostalCode String?
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  items   OrderItem[]
+  payment Payment?
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id       Int     @id @default(autoincrement())
+  quantity Int
+  price    Decimal
+
+  // Product information at the time of purchase.
+  productName String
+  sku         String
+
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, productId])
+  @@index([productId])
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  amount        Decimal
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String
+  transactionId String?       @unique
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  orderId Int   @unique
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  rating    Int
+  comment   String?
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, productId])
+  @@index([productId, createdAt])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
