@@ -23,7 +23,8 @@
     "migration:status": "prisma migration status",
     "skills:sync": "prisma skills sync || exit 0",
     "start": "node dist/server.mjs",
-    "postinstall": "prisma skills sync || exit 0"
+    "postinstall": "prisma skills sync || exit 0",
+    "seed": "bun --env-file=.env run src/prisma/seed-run.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.3",
