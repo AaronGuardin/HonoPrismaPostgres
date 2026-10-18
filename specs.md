@@ -85,7 +85,7 @@ The following are represented in the database model or typical commerce workflow
 - Address management and shipping workflows.
 - Product and category create/update/delete APIs, product search, and inventory adjustment.
 - Review submission and moderation.
-- Authentication, authorization, customer ownership checks, and administrative roles.
+- JWT-based authentication and authorization, customer ownership checks, and administrative roles. JWT is the intended authentication approach; it is not implemented yet.
 - Pagination, filtering, sorting, API documentation, and automated tests.
 
 ## Project constraints and conventions
@@ -121,7 +121,7 @@ For the current Composer deployment, `tsdown` builds the server bundle for Node.
 The following notes describe confirmed current-state gaps and risks identified by static inspection. They are not implemented features or completed fixes.
 
 1. **Reconcile migration history before deployment.** The only committed migration, `migrations/app/20261010T0810_init/`, targets snapshot `797cfed44e9c40efbc00a689b87c92c44cd4b60e1ae3d6ffbc0304d8f348aaf5`, whose models are `Post` and `User`. The current contract and `migrations/app/refs/db.json` point to snapshot `3a3d3c36282a72b19844fc19e45eff262d3b2011ffed242e60b59c159c642f46`, which contains the ecommerce models. There is no committed migration connecting those snapshots. Review the intended baseline and migration graph before relying on deploy or migration commands to create/update a database.
-2. **Decide and enforce API access policy.** User routes expose email addresses and allow create, update, and delete operations without authentication or authorization. If the service is reachable by untrusted clients, add authentication and access checks before exposing these routes.
+2. **Implement JWT authentication and enforce access policy.** JWT is the intended authentication approach. User routes currently expose email addresses and allow create, update, and delete operations without authentication or authorization. Add JWT verification and appropriate ownership/role checks before exposing these routes to untrusted clients.
 3. **Make seed data deterministic and document its lifecycle.** Seeding is manual in the current route architecture, despite the README's first-query claim. Resolve category IDs by stable keys rather than fixed numeric IDs, and keep sample records out of shared or production databases unless explicitly intended.
 4. **Add database and request-level invariants.** Decide policies for default addresses, ratings, stock, quantities, and monetary values; enforce them consistently in the contract and API validation.
 5. **Standardize validation and database error responses.** Handle category name/slug conflicts, user email race conflicts, and validation errors consistently. Reject empty category patches and return `"Product not found"` for missing products.
