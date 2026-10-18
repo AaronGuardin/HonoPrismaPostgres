@@ -13,7 +13,7 @@ This project is a starter e-commerce API built with Hono, TypeScript, PostgreSQL
 - Local Composer development: `bun run dev:composer`.
 - Direct development server: `bun run dev` (requires `DATABASE_URL`).
 - Deployment: `bun run deploy` builds the app and invokes Composer deployment.
-- The application seeds three sample users, categories, and products idempotently on the first database query through the Composer service binding. The seed script can also be run with `bun run seed`.
+- `bun run seed` runs an idempotent seed script for three sample users, categories, and products. The current HTTP route path does not invoke this script automatically. Seeded products refer to category IDs `1`, `2`, and `3`.
 
 ## API conventions
 
@@ -42,9 +42,9 @@ This project is a starter e-commerce API built with Hono, TypeScript, PostgreSQL
 | `GET /categories` | Return up to 10 categories with `id`, `name`, `slug`, `createdAt`, and `updatedAt`. | `200 { data }` |
 | `GET /categories/:id` | Return one category by numeric ID. | `200 { data }`; `404 { error: "Category not found" }` |
 | `POST /categories` | Create a category. `name` and `slug` are required and limited to 100 characters. Slugs are lowercase alphanumeric words separated by single hyphens. | `201 { data }`; `400` validation error |
-| `PATCH /categories/:id` | Update `name` and/or `slug`; both are optional and use the create constraints. | `200 { data }`; `400` validation error; `404 { error: "CATEGORY_NOT_FOUND" }` |
+| `PATCH /categories/:id` | Update `name` and/or `slug`; both are optional and use the create constraints. The current schema also accepts an empty object. | `200 { data }`; `400` validation error; `404 { error: "CATEGORY_NOT_FOUND" }` |
 
-Category uniqueness is enforced by the database contract for both name and slug. Duplicate handling is not currently translated into a documented conflict response by the routes.
+Category uniqueness is enforced by the database contract for both name and slug. The service pre-checks duplicate slugs on update, but not duplicate names; create and update routes do not map database uniqueness failures to a conflict response. The user service also pre-checks email duplicates, but concurrent writes can still reach the database constraint and become an unexpected error.
 
 ### Products
 
@@ -54,6 +54,7 @@ Category uniqueness is enforced by the database contract for both name and slug.
 | `GET /products/:id` | Return one product by numeric ID. | `200 { data }`; `404` when no product exists (currently the error text is `"Category not found"`) |
 
 Product write routes, filters, category expansion, and pagination are not implemented.
+The product list currently includes inactive products. A missing product currently returns the error text `"Category not found"`.
 
 ## Data model
 
@@ -72,7 +73,7 @@ The source of truth is `src/prisma/contract.prisma`. Generated contract artifact
 - Order statuses are `PENDING`, `CONFIRMED`, `PROCESSING`, `SHIPPED`, `DELIVERED`, and `CANCELLED`.
 - Payment statuses are `PENDING`, `COMPLETED`, `FAILED`, and `REFUNDED`.
 
-The contract defines relation deletion behavior and indexes. It does not currently declare rating bounds, stock/quantity minimums beyond defaults, or currency semantics for decimal monetary values.
+The contract defines relation deletion behavior and indexes. It does not currently enforce a single default address per user, rating bounds, nonnegative stock or quantities, or currency and precision semantics for decimal monetary values. Deleting a user is restricted when that user has orders, while related addresses, carts, and reviews cascade on deletion.
 
 ## Out of scope for the current implementation
 
@@ -93,6 +94,7 @@ The following are represented in the database model or typical commerce workflow
 - Request validation uses Zod schemas colocated with each module.
 - Route handlers are grouped by resource under `src/modules/<resource>/` and call service functions for database operations.
 - Database access is provided by `src/prisma/db.ts`, preferring the Composer-bound database client and falling back to a PostgreSQL client configured from `DATABASE_URL`.
+- Keep generated contract artifacts and migration refs aligned with the current data contract; do not treat the migration directory as proof that the current contract has been applied.
 
 ## Tech Stack
 
@@ -113,3 +115,16 @@ For the current Composer deployment, `tsdown` builds the server bundle for Node.
 - Follow the existing project architecture: group code by resource, keep request schemas alongside their resource, and centralize database access through `src/prisma/db.ts`.
 - Avoid unnecessary dependencies.
 - Do not upgrade or replace existing dependencies without approval.
+
+## Audit Findings and Priorities
+
+The following notes describe confirmed current-state gaps and risks identified by static inspection. They are not implemented features or completed fixes.
+
+1. **Reconcile migration history before deployment.** The only committed migration, `migrations/app/20261010T0810_init/`, targets snapshot `797cfed44e9c40efbc00a689b87c92c44cd4b60e1ae3d6ffbc0304d8f348aaf5`, whose models are `Post` and `User`. The current contract and `migrations/app/refs/db.json` point to snapshot `3a3d3c36282a72b19844fc19e45eff262d3b2011ffed242e60b59c159c642f46`, which contains the ecommerce models. There is no committed migration connecting those snapshots. Review the intended baseline and migration graph before relying on deploy or migration commands to create/update a database.
+2. **Decide and enforce API access policy.** User routes expose email addresses and allow create, update, and delete operations without authentication or authorization. If the service is reachable by untrusted clients, add authentication and access checks before exposing these routes.
+3. **Make seed data deterministic and document its lifecycle.** Seeding is manual in the current route architecture, despite the README's first-query claim. Resolve category IDs by stable keys rather than fixed numeric IDs, and keep sample records out of shared or production databases unless explicitly intended.
+4. **Add database and request-level invariants.** Decide policies for default addresses, ratings, stock, quantities, and monetary values; enforce them consistently in the contract and API validation.
+5. **Standardize validation and database error responses.** Handle category name/slug conflicts, user email race conflicts, and validation errors consistently. Reject empty category patches and return `"Product not found"` for missing products.
+6. **Decide product visibility and add tests.** Specify whether inactive products appear in public catalog reads. Add route/service coverage for validation, error mapping, deletion restrictions, seeding, and access control. No test files or test script are currently present.
+
+The separate `prisma-8.md` guide contains generic `Post`/`username` examples and does not describe the current ecommerce contract; update or clearly label it if it is intended as project documentation.
